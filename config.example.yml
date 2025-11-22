@@ -1,0 +1,395 @@
+# Enhanced PostgreSQL to Typesense Sync Configuration
+# This file demonstrates all available Typesense field configuration options
+#
+# NOTE: Database and Typesense connection settings are configured via environment variables.
+# See .env.example for required environment variables:
+#   - POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DBNAME
+#   - TYPESENSE_API_KEY, TYPESENSE_HOST, TYPESENSE_PORT, TYPESENSE_PROTOCOL
+
+# Tables to sync
+tables:
+  - name: "products"
+    collection: "products_v1"
+    transformer: "transformers.transform_product"
+    schema:
+      # ============================================
+      # ID Field (Required for all collections)
+      # ============================================
+      - name: "id"
+        type: "string"
+        # ID field should not be optional
+      
+      # ============================================
+      # Text Fields with Full Configuration
+      # ============================================
+      
+      # Product name - searchable, sortable, with infix search
+      - name: "product_name"
+        type: "string"
+        facet: false          # Enable faceting for filtering (default: false)
+        index: true           # Enable text indexing for search (default: true)
+        sort: true            # Enable sorting on this field (default: false)
+        optional: false       # Field is required (default: true for non-id fields)
+        locale: ""            # Language locale for text analysis (e.g., "en", "es", "fr")
+        infix: false          # Enable infix/substring search (default: false)
+        stem: false           # Enable stemming for search (default: false)
+      
+      # Description - full text search enabled
+      - name: "description"
+        type: "string"
+        index: true           # Searchable
+        optional: true        # Can be missing/null
+        facet: false
+        sort: false
+        stem: true            # Enable stemming for better text search
+      
+      # SKU - exact match field with infix search
+      - name: "sku"
+        type: "string"
+        index: true
+        infix: true           # Enable substring matching (e.g., search "123" finds "ABC-123-XYZ")
+        optional: true
+        sort: true
+      
+      # Brand - facetable for filtering
+      - name: "brand"
+        type: "string"
+        facet: true           # Enable as facet for brand filters
+        index: true
+        optional: true
+        sort: true
+      
+      # Category - facetable and searchable
+      - name: "category"
+        type: "string"
+        facet: true           # Enable faceting for category filters
+        index: true           # Also searchable
+        optional: true
+        sort: true
+      
+      # ============================================
+      # Numeric Fields
+      # ============================================
+      
+      # Price - sortable and range searchable
+      - name: "price"
+        type: "float"         # Floating point number
+        facet: false
+        sort: true            # Enable sorting by price
+        optional: false
+        index: true           # Enable for range queries
+      
+      # Stock quantity
+      - name: "stock_quantity"
+        type: "int32"         # 32-bit integer
+        facet: false
+        sort: true
+        optional: true
+        index: true
+      
+      # Rating (1-5 scale)
+      - name: "rating"
+        type: "float"
+        facet: true           # Enable faceting for rating filters
+        sort: true
+        optional: true
+        index: true
+      
+      # View count
+      - name: "view_count"
+        type: "int64"         # 64-bit integer for large numbers
+        sort: true
+        optional: true
+        index: true
+      
+      # ============================================
+      # Boolean Fields
+      # ============================================
+      
+      # Sale indicator - facetable boolean
+      - name: "is_on_sale"
+        type: "bool"
+        facet: true           # Enable faceting for on-sale/not-on-sale filter
+        optional: false
+        index: true
+      
+      # Featured product
+      - name: "is_featured"
+        type: "bool"
+        facet: true
+        optional: true
+        index: true
+      
+      # In stock
+      - name: "in_stock"
+        type: "bool"
+        facet: true
+        optional: true
+        index: true
+      
+      # ============================================
+      # Array Fields (Multiple Values)
+      # ============================================
+      
+      # Tags - array of strings
+      - name: "tags"
+        type: "string[]"      # Array of strings
+        facet: true           # Enable faceting on array values
+        optional: true
+        index: true           # Make tags searchable
+      
+      # Colors available - facetable array
+      - name: "colors"
+        type: "string[]"
+        facet: true           # Users can filter by available colors
+        optional: true
+        index: true
+      
+      # Size options
+      - name: "sizes"
+        type: "string[]"
+        facet: true
+        optional: true
+        index: true
+      
+      # Related product IDs
+      - name: "related_product_ids"
+        type: "string[]"
+        facet: false
+        optional: true
+        index: false          # IDs typically don't need text search
+      
+      # Image URLs
+      - name: "image_urls"
+        type: "string[]"
+        facet: false
+        optional: true
+        index: false          # URLs don't need text indexing
+      
+      # Numeric array - price history
+      - name: "price_history"
+        type: "float[]"       # Array of floats
+        optional: true
+        index: false
+        sort: false
+      
+      # ============================================
+      # Timestamp Fields (Date Type)
+      # ============================================
+      
+      # Created timestamp - using date type for automatic conversion
+      - name: "created_at"
+        type: "date"          # Automatically converts to int64 Unix timestamp
+        sort: true
+        optional: true
+        index: true           # Enable for range queries on date
+      
+      # Updated timestamp
+      - name: "updated_at"
+        type: "date"
+        sort: true
+        optional: true
+        index: true
+      
+      # Last sale date
+      - name: "last_sale_at"
+        type: "date"
+        sort: true
+        optional: true
+        index: true
+      
+      # ============================================
+      # Geospatial Fields (Location-based)
+      # ============================================
+      
+      # Location - for geo search (requires array of [lat, lng])
+      - name: "location"
+        type: "geopoint"      # Special type for coordinates
+        optional: true
+        index: true           # Enable geo search
+        facet: false
+      
+      # Multiple locations (array of geopoints)
+      - name: "store_locations"
+        type: "geopoint[]"
+        optional: true
+        index: true
+      
+      # ============================================
+      # Special Types
+      # ============================================
+      
+      # Object field (stored but not indexed)
+      - name: "metadata"
+        type: "object"        # JSON object stored as-is
+        optional: true
+        index: false          # Objects cannot be indexed/searched directly
+        facet: false
+      
+      # Object array
+      - name: "variants"
+        type: "object[]"      # Array of JSON objects
+        optional: true
+        index: false
+        facet: false
+      
+      # ============================================
+      # Vector Embeddings (pgvector)
+      # ============================================
+      
+      # Product embedding from PostgreSQL pgvector
+      - name: "product_embedding"
+        source_type: "vector" # PostgreSQL type (pgvector)
+        type: "float[]"       # Typesense type
+        num_dim: 384          # Dimension of embedding (REQUIRED for vectors)
+        optional: true
+        # Use for vector similarity search
+      
+      # Description embedding (different dimension)
+      - name: "description_vector"
+        source_type: "vector"
+        type: "float[]"
+        num_dim: 768          # BERT-based embedding (768 dims)
+        optional: true
+      
+      # Auto-embedding field (for vector search) - Typesense 0.25.0+
+      # Note: This is for Typesense's built-in embedding generation,
+      # different from syncing existing pgvector embeddings
+      - name: "description_embedding"
+        type: "float[]"       # Vector embeddings
+        embed:
+          from: ["description"]  # Generate embeddings from these fields
+          model_config:
+            model_name: "ts/all-MiniLM-L12-v2"  # Embedding model
+        optional: true
+        num_dim: 384          # Dimension of embedding vectors
+
+  # ============================================
+  # Second Table Example - Users
+  # ============================================
+  - name: "users"
+    collection: "users_v1"
+    transformer: "transformers.transform_user"
+    schema:
+      # ID field
+      - name: "id"
+        type: "string"
+      
+      # Username - searchable with infix
+      - name: "username"
+        type: "string"
+        facet: false
+        index: true
+        sort: true
+        optional: false
+        infix: true           # Enable partial username matching
+      
+      # Email - searchable
+      - name: "email"
+        type: "string"
+        index: true
+        optional: false
+        facet: false
+        infix: false
+      
+      # Full name - searchable with locale and stemming
+      - name: "full_name"
+        type: "string"
+        index: true
+        sort: true
+        optional: true
+        locale: "en"          # English language support
+        stem: true            # Enable stemming
+      
+      # Account type - facetable
+      - name: "account_type"
+        type: "string"
+        facet: true           # Filter by free/premium/enterprise
+        optional: true
+        index: true
+      
+      # Status - facetable
+      - name: "status"
+        type: "string"
+        facet: true           # Filter by active/inactive/suspended
+        optional: true
+        index: true
+      
+      # Roles - array of strings
+      - name: "roles"
+        type: "string[]"
+        facet: true           # Filter by user roles
+        optional: true
+        index: true
+      
+      # Registration date
+      - name: "registered_at"
+        type: "date"
+        sort: true
+        optional: true
+        index: true
+      
+      # Last login
+      - name: "last_login_at"
+        type: "date"
+        sort: true
+        optional: true
+        index: true
+      
+      # Is verified
+      - name: "is_verified"
+        type: "bool"
+        facet: true
+        optional: true
+        index: true
+      
+      # Location
+      - name: "location"
+        type: "geopoint"
+        optional: true
+        index: true
+
+# ============================================
+# Typesense Field Type Reference
+# ============================================
+# 
+# Supported Types:
+# - string        : Text field
+# - int32         : 32-bit integer
+# - int64         : 64-bit integer  
+# - float         : Floating point number
+# - bool          : Boolean true/false
+# - date          : Date/datetime (auto-converts to int64 timestamp)
+# - geopoint      : [lat, lng] for geo search
+# - geopoint[]    : Array of geopoints
+# - string[]      : Array of strings
+# - int32[]       : Array of 32-bit integers
+# - int64[]       : Array of 64-bit integers
+# - float[]       : Array of floats
+# - bool[]        : Array of booleans
+# - object        : JSON object (not searchable)
+# - object[]      : Array of JSON objects
+# - auto          : Automatic type detection
+#
+# Field Properties:
+# - name          : Field name (required)
+# - type          : Field type (required)
+# - facet         : Enable faceting for filtering (default: false)
+# - optional      : Allow field to be missing (default: true, except for id)
+# - index         : Enable indexing for search (default: true for text, false for objects)
+# - sort          : Enable sorting (default: false)
+# - infix         : Enable substring/infix search (default: false)
+# - locale        : Language locale for text analysis (e.g., "en", "ja", "zh")
+# - stem          : Enable word stemming (default: false)
+# - store         : Store field value even if not indexed (default: true)
+# - embed         : Auto-generate embeddings for vector search (Typesense 0.25.0+)
+# - num_dim       : Number of dimensions for embedding vectors
+#
+# Notes:
+# - The 'id' field is required in every collection
+# - Faceting enables filtering in search (e.g., filter by category, brand)
+# - Sorting enables ordering results by field values
+# - Infix search allows partial matching anywhere in the string
+# - Geopoint fields enable location-based search and filtering
+# - Object fields are stored but not searchable
+# - Array fields can be faceted to show all unique values

@@ -1,0 +1,6 @@
+typesense
+tqdm
+psycopg[binary]
+pyyaml
+pgvector
+python-dotenv
