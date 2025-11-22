@@ -231,12 +231,33 @@ def sync(config, batch_size=100):
                                 sync_success = False
                                 
                     for collection, docs in deletes.items():
-                        break
                         if docs:
                             try:
-                                result = ts_client.collections[collection].documents.import_(docs, {'action': 'delete'})
-                                delete_count += len(docs)
-                                print(f"✓ Deleted {len(docs)} documents from collection '{collection}'")
+                                # Delete documents individually (Typesense doesn't support batch delete via import_)
+                                deleted = 0
+                                failed = 0
+                                for doc in docs:
+                                    try:
+                                        result = ts_client.collections[collection].documents[doc['id']].delete()
+                                        # Validate the result has the expected id field
+                                        if result and 'id' in result:
+                                            deleted += 1
+                                        else:
+                                            print(f"⚠ Warning: Unexpected delete response for document {doc['id']}: {result}")
+                                            failed += 1
+                                    except Exception as del_err:
+                                        # Document may already be deleted (404), treat as success
+                                        if "404" in str(del_err) or "Not Found" in str(del_err):
+                                            deleted += 1
+                                        else:
+                                            print(f"⚠ Warning: Failed to delete document {doc['id']}: {del_err}")
+                                            failed += 1
+                                            sync_success = False
+                                delete_count += deleted
+                                if failed > 0:
+                                    print(f"✓ Deleted {deleted} documents from collection '{collection}' ({failed} failed)")
+                                else:
+                                    print(f"✓ Deleted {deleted} documents from collection '{collection}'")
                             except Exception as e:
                                 print(f"✗ Failed to delete from collection '{collection}': {e}")
                                 sync_success = False
