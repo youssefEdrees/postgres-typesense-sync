@@ -1,7 +1,7 @@
 import sys
 from collections import defaultdict
 from psycopg.rows import dict_row
-from .db import get_db_connection, setup_database_objects, backfill_queue
+from .db import Database
 from .typesense_client import get_typesense_client, setup_typesense_collections
 from .utils import normalize_document_for_typesense, apply_column_aliases, remove_unmapped_fields
 
@@ -16,12 +16,7 @@ def setup(config, recreate_collections=False, skip_backfill=True):
     print("Starting setup...")
     
     # Initialize database connection with error handling
-    try:
-        db_conn = get_db_connection(config['postgresql'])
-        print("✓ Database connection established")
-    except Exception as e:
-        print(f"✗ Failed to connect to database: {e}")
-        return False
+    db = Database(config['postgresql'])
     
     # Initialize Typesense client with error handling
     try:
@@ -29,16 +24,14 @@ def setup(config, recreate_collections=False, skip_backfill=True):
         print("✓ Typesense client initialized")
     except Exception as e:
         print(f"✗ Failed to initialize Typesense client: {e}")
-        db_conn.close()
         return False
     
     # Setup database objects with validation
     try:
-        setup_database_objects(db_conn, config['tables'])
+        db.setup_database_objects(config['tables'])
         print("✓ Database objects setup completed")
     except Exception as e:
         print(f"✗ Failed to setup database objects: {e}")
-        db_conn.close()
         return False
     
     # Setup Typesense collections with validation
@@ -47,23 +40,20 @@ def setup(config, recreate_collections=False, skip_backfill=True):
         print("✓ Typesense collections setup completed")
     except Exception as e:
         print(f"✗ Failed to setup Typesense collections: {e}")
-        db_conn.close()
         return False
     
     # Perform backfill if requested
     if not skip_backfill:
         print("Starting initial data backfill...")
         try:
-            backfill_queue(db_conn, config['tables'])
+            db.backfill_queue(config['tables'])
             print("✓ Data backfill completed")
         except Exception as e:
             print(f"✗ Failed during data backfill: {e}")
-            db_conn.close()
             return False
     else:
         print("ℹ Queue backfill skipped (use --backfill-queue to enable)")
     
-    db_conn.close()
     print("\n✓ Setup completed successfully")
     return True
 
@@ -73,8 +63,9 @@ def sync(config, batch_size=100):
     print(f"Starting sync process (batch size: {batch_size})...")
     
     # Initialize connections with error handling
+    db = Database(config['postgresql'])
     try:
-        db_conn = get_db_connection(config['postgresql'])
+        db_conn = db.get_db_connection()
     except Exception as e:
         print(f"✗ Failed to connect to database for sync: {e}")
         return False
@@ -83,7 +74,7 @@ def sync(config, batch_size=100):
         ts_client = get_typesense_client(config['typesense'])
     except Exception as e:
         print(f"✗ Failed to connect to Typesense for sync: {e}")
-        db_conn.close()
+        db.close_db_connection(db_conn)
         return False
     
     table_map = {t['name']: t for t in config['tables']}
@@ -102,7 +93,7 @@ def sync(config, batch_size=100):
             queue_exists = result['queue_exists']
             if not queue_exists:
                 print("✗ Sync queue table does not exist. Please run setup first.")
-                db_conn.close()
+                db.close_db_connection(db_conn)
                 return False
             
             # Get total count of jobs to process
@@ -111,13 +102,13 @@ def sync(config, batch_size=100):
             
             if total_jobs == 0:
                 print("✓ No new jobs to process.")
-                db_conn.close()
+                db.close_db_connection(db_conn)
                 return True
             
             print(f"Total jobs in queue: {total_jobs}")
     except Exception as e:
         print(f"✗ Failed to check sync queue: {e}")
-        db_conn.close()
+        db.close_db_connection(db_conn)
         return False
     
     # Process all jobs in batches
@@ -294,7 +285,7 @@ def sync(config, batch_size=100):
             # Continue to next batch or exit based on error type
             break
     
-    db_conn.close()
+    db.close_db_connection(db_conn)
     
     if total_processed > 0:
         print(f"\n✓ Sync completed successfully: {total_processed} total jobs processed in {batch_number} batch(es)")
@@ -312,8 +303,9 @@ def status(config):
     
     # Test PostgreSQL connection
     print("\n[Database Connection]")
+    db = Database(config['postgresql'])
     try:
-        db_conn = get_db_connection(config['postgresql'])
+        db_conn = db.get_db_connection()
         print(f"✓ PostgreSQL: Connected")
         print(f"  Host: {config['postgresql']['host']}:{config['postgresql']['port']}")
         print(f"  Database: {config['postgresql']['dbname']}")
@@ -464,7 +456,7 @@ def status(config):
             print(f"    ✗ Typesense collection does not exist")
             print(f"      Run 'setup' command to create collections")
     
-    db_conn.close()
+    db.close_db_connection(db_conn)
     print("\n" + "=" * 70)
     print("Status check completed")
     print("=" * 70)

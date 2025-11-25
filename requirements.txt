@@ -1,6 +1,7 @@
 typesense
 tqdm
 psycopg[binary]
+psycopg-pool
 pyyaml
 pgvector
 python-dotenv
