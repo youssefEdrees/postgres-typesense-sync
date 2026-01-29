@@ -31,31 +31,30 @@ def load_config(path="config.yml"):
     if not isinstance(config, dict):
         raise Exception("Invalid configuration: root must be a dictionary.")
     
-    if "postgresql" not in config or "typesense" not in config or "tables" not in config:
-        raise Exception("Invalid configuration: missing 'postgresql', 'typesense', or 'tables' section.")
+    config["postgresql"] = {
+        "host": os.getenv("POSTGRES_HOST"),
+        "port": int(os.getenv("POSTGRES_PORT", 5432)),
+        "user": os.getenv("POSTGRES_USER"),
+        "password": os.getenv("POSTGRES_PASSWORD"),
+        "dbname": os.getenv("POSTGRES_DBNAME"),
+    }
     
-    # Override PostgreSQL config with environment variables if present
-    config["postgresql"]["host"] = os.getenv("POSTGRES_HOST", config["postgresql"].get("host"))
-    config["postgresql"]["port"] = int(os.getenv("POSTGRES_PORT", config["postgresql"].get("port", 5432)))
-    config["postgresql"]["user"] = os.getenv("POSTGRES_USER", config["postgresql"].get("user"))
-    config["postgresql"]["password"] = os.getenv("POSTGRES_PASSWORD", config["postgresql"].get("password"))
-    config["postgresql"]["dbname"] = os.getenv("POSTGRES_DBNAME", config["postgresql"].get("dbname"))
-    
-    # Override Typesense config with environment variables if present
-    config["typesense"]["api_key"] = os.getenv("TYPESENSE_API_KEY", config["typesense"].get("api_key"))
-    config["typesense"]["host"] = os.getenv("TYPESENSE_HOST", config["typesense"].get("host"))
-    config["typesense"]["port"] = int(os.getenv("TYPESENSE_PORT", config["typesense"].get("port", 8108)))
-    config["typesense"]["protocol"] = os.getenv("TYPESENSE_PROTOCOL", config["typesense"].get("protocol", "http"))
+    config["typesense"] = {
+        "api_key": os.getenv("TYPESENSE_API_KEY"),
+        "host": os.getenv("TYPESENSE_HOST"),
+        "port": int(os.getenv("TYPESENSE_PORT", 8108)),
+        "protocol": os.getenv("TYPESENSE_PROTOCOL", "http"),
+    }
     
     # Validate PostgreSQL configuration
-    for key in ["host", "port", "user", "password", "dbname"]:
-        if key not in config["postgresql"] or config["postgresql"][key] is None:
-            raise Exception(f"Missing '{key}' in 'postgresql' section.")
+    for key in ["host", "user", "password", "dbname"]:
+        if config["postgresql"][key] is None:
+            raise Exception(f"Missing environment variable 'POSTGRES_{key.upper()}'. Set it in your .env file.")
     
     # Validate Typesense configuration
-    for key in ["api_key", "host", "port", "protocol"]:
-        if key not in config["typesense"] or config["typesense"][key] is None:
-            raise Exception(f"Missing '{key}' in 'typesense' section.")
+    for key in ["api_key", "host"]:
+        if config["typesense"][key] is None:
+            raise Exception(f"Missing environment variable 'TYPESENSE_{key.upper()}'. Set it in your .env file.")
     
     # Validate tables configuration
     if not config["tables"] or not isinstance(config["tables"], list):
